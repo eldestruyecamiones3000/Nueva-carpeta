@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz de Geometry Dash</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap">
+<style>
+  /* Colores registrados para poder animar el cambio de tema entre niveles */
+  @property --bg-top { syntax: "<color>"; inherits: true; initial-value: #2a63e8; }
+  @property --bg-bottom { syntax: "<color>"; inherits: true; initial-value: #123aa8; }
+  @property --card { syntax: "<color>"; inherits: true; initial-value: #0e2a86; }
+  @property --option { syntax: "<color>"; inherits: true; initial-value: #1a41b8; }
+  @property --option-hover { syntax: "<color>"; inherits: true; initial-value: #2354dc; }
+  @property --lc { syntax: "<color>"; inherits: true; initial-value: #3be6ff; }
+  @property --ground { syntax: "<color>"; inherits: true; initial-value: #06134a; }
+
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --bg-top: #2a63e8;
+    --bg-bottom: #123aa8;
+    --card: #0e2a86;
+    --option: #1a41b8;
+    --option-hover: #2354dc;
+    --lc: #3be6ff;
+    --ground: #06134a;
+    --card-edge: #050b2b;
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.78);
+    --yellow: #ffd83d;
+    --ok: #34d65f;
+    --bad: #ff4d4d;
+    --shade: 0;
+    transition: --bg-top 0.9s ease, --bg-bottom 0.9s ease, --card 0.6s ease,
+                --option 0.6s ease, --option-hover 0.6s ease, --lc 0.6s ease, --ground 0.6s ease;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --shade: 0.22; }
+  }
+  :root[data-theme="dark"] { --shade: 0.22; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg-bottom);
+    background-image: linear-gradient(var(--bg-top), var(--bg-bottom));
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-weight: 600;
+    line-height: 1.45;
+    overflow-x: hidden;
+  }
+
+  /* Capas de efectos */
+  #bg, #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #bg { z-index: 0; }
+  #fx { z-index: 50; }
+  .spot {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(circle 340px at var(--sx, 50%) var(--sy, 30%), rgba(255, 255, 255, 0.16), transparent 70%);
+  }
+  .shade { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: rgba(0, 0, 0, var(--shade)); }
+  .flash { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; }
+  .flash.go { animation: flash 0.5s ease-out; }
+  @keyframes flash { 0% { opacity: 0.35; } 100% { opacity: 0; } }
+
+  /* Cursor personalizado: un cubo */
+  .cursor {
+    display: none;
+    position: fixed; left: 0; top: 0;
+    width: 26px; height: 26px;
+    background: var(--yellow);
+    border: 3px solid var(--card-edge);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s;
+    will-change: transform;
+  }
+  .cursor::before, .cursor::after {
+    content: ""; position: absolute; top: 6px; width: 4px; height: 4px; background: var(--card-edge);
+  }
+  .cursor::before { left: 3px; }
+  .cursor::after { right: 3px; }
+  .has-cursor .cursor { display: block; }
+  .has-cursor .cursor.show { opacity: 1; }
+  .cursor.hot { background: var(--lc); }
+  .has-cursor, .has-cursor * { cursor: none !important; }
+
+  .wrap {
+    position: relative; z-index: 2;
+    max-width: 640px; margin: 0 auto;
+    padding: 24px 16px 110px;
+  }
+  h1, h2, .btn, .big, .mini, .streak {
+    font-family: "Lilita One", "Arial Rounded MT Bold", Impact, system-ui, sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 {
+    margin: 0;
+    font-size: clamp(1.8rem, 6vw, 2.5rem);
+    line-height: 1.1;
+    color: var(--yellow);
+    -webkit-text-stroke: 2px var(--card-edge);
+    paint-order: stroke fill;
+    text-shadow: 0 4px 0 var(--card-edge);
+  }
+  h1 .word { display: inline-block; white-space: nowrap; }
+  h1 .ch {
+    display: inline-block;
+    animation: drop 0.55s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+    animation-delay: var(--d, 0ms);
+  }
+  h1 .ch.hop { animation: hop 0.45s ease; }
+  @keyframes drop { from { transform: translateY(-40px) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes hop {
+    0% { transform: translateY(0) rotate(0); }
+    45% { transform: translateY(-14px) rotate(-12deg); }
+    100% { transform: translateY(0) rotate(0); }
+  }
+
+  .mini {
+    position: relative; overflow: hidden; flex: none;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--card);
+    border: 3px solid var(--card-edge);
+    border-radius: 8px;
+    box-shadow: 0 3px 0 var(--card-edge);
+    cursor: pointer;
+  }
+
+  /* Niveles */
+  .levels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+  .levels li {
+    padding: 6px 4px;
+    text-align: center;
+    font-family: "Lilita One", system-ui, sans-serif;
+    font-size: 0.95rem;
+    color: var(--muted);
+    background: rgba(0, 0, 0, 0.28);
+    border: 3px solid var(--card-edge);
+    border-radius: 8px;
+    transition: background 0.3s, color 0.3s;
+  }
+  .levels li.current { color: var(--card-edge); background: var(--lc); }
+  .levels li.done { color: var(--card-edge); background: var(--ok); }
+
+  /* Pista de progreso */
+  .track { position: relative; height: 64px; margin-bottom: 4px; }
+  .ground {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 14px;
+    background: var(--ground);
+    border: 3px solid var(--card-edge);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .ground-fill {
+    height: 100%;
+    width: calc(var(--p, 0) * 100%);
+    background-color: var(--lc);
+    background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.35) 0 8px, transparent 8px 16px);
+    background-size: 22.6px 22.6px;
+    animation: stripes 0.8s linear infinite;
+    transition: width 0.45s ease;
+  }
+  @keyframes stripes { to { background-position: 22.6px 0; } }
+  .cube {
+    position: absolute; bottom: 14px;
+    left: calc((100% - 34px) * var(--p, 0));
+    width: 34px; height: 34px;
+    background: var(--yellow);
+    border: 3px solid var(--card-edge);
+    border-radius: 4px;
+    transition: left 0.45s ease;
+  }
+  .cube::before, .cube::after { content: ""; position: absolute; top: 8px; width: 6px; height: 6px; background: var(--card-edge); }
+  .cube::before { left: 5px; }
+  .cube::after { right: 5px; }
+  .cube.jump { animation: jump 0.5s ease; }
+  .cube.crash { animation: crash 0.45s ease; }
+  @keyframes jump {
+    0% { transform: translateY(0) rotate(0); }
+    50% { transform: translateY(-30px) rotate(45deg); }
+    100% { transform: translateY(0) rotate(90deg); }
+  }
+  @keyframes crash {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    20% { transform: translateX(-6px) rotate(-8deg); }
+    40% { transform: translateX(6px) rotate(8deg); }
+    60% { transform: translateX(-4px) rotate(-5deg); }
+    80% { transform: translateX(3px) rotate(3deg); }
+  }
+  .spike {
+    position: absolute; bottom: 14px; width: 0; height: 0;
+    border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--card-edge);
+  }
+  .track-info { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 14px; font-size: 0.9rem; color: var(--muted); }
+  .streak { color: var(--yellow); font-size: 1.1rem; min-width: 5ch; text-align: center; }
+  .pop { animation: pop 0.35s ease; display: inline-block; }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.4); } 100% { transform: scale(1); } }
+
+  /* Tarjeta con inclinación 3D y brillo que sigue al mouse */
+  .card {
+    position: relative;
+    background: var(--card);
+    border: 4px solid var(--card-edge);
+    border-radius: 14px;
+    padding: 22px 20px 20px;
+    box-shadow: 0 6px 0 var(--card-edge);
+    transition: transform 0.18s ease-out;
+    will-change: transform;
+  }
+  .card::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.18), transparent 55%);
+    opacity: var(--glare, 0);
+    transition: opacity 0.3s;
+  }
+  .card.enter { animation: enter 0.45s cubic-bezier(0.2, 1.4, 0.4, 1); }
+  .card.shake { animation: shake 0.45s ease; }
+  @keyframes enter { from { opacity: 0; transform: translateY(16px) scale(0.94); } to { opacity: 1; transform: none; } }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-12px) rotate(-1deg); }
+    35% { transform: translateX(10px) rotate(1deg); }
+    55% { transform: translateX(-7px); }
+    75% { transform: translateX(4px); }
+  }
+  h2 { margin: 0 0 18px; font-size: clamp(1.3rem, 4.6vw, 1.7rem); line-height: 1.2; }
+  .options { display: grid; gap: 10px; margin: 0 0 18px; padding: 0; border: 0; }
+  .option {
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    text-align: left;
+    color: var(--text);
+    background: var(--option);
+    border: 3px solid var(--card-edge);
+    border-radius: 10px;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+    animation: slideIn 0.35s ease backwards;
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+  .option::after {
+    content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    transform: skewX(-20deg); pointer-events: none; transition: left 0.5s ease;
+  }
+  .option:hover:not(:disabled) { background: var(--option-hover); transform: translateX(6px); }
+  .option:hover:not(:disabled)::after { left: 130%; }
+  .option:active:not(:disabled) { transform: translateX(6px) scale(0.98); }
+  .option .letter {
+    flex: none; display: grid; place-items: center;
+    width: 30px; height: 30px;
+    font-family: "Lilita One", system-ui, sans-serif;
+    background: var(--card-edge);
+    border-radius: 6px;
+  }
+  .option[aria-pressed="true"] { background: var(--yellow); color: var(--card-edge); }
+  .option[aria-pressed="true"] .letter { color: var(--yellow); }
+  .option.correct { background: var(--ok); color: var(--card-edge); }
+  .option.wrong { background: var(--bad); color: var(--card-edge); }
+  .option.correct .letter, .option.wrong .letter { color: var(--text); }
+  .option:disabled { cursor: default; }
+  .option:disabled:not(.correct):not(.wrong) { opacity: 0.55; }
+
+  .feedback { margin: 0 0 18px; padding: 12px 14px; background: rgba(0, 0, 0, 0.28); border-left: 6px solid var(--lc); border-radius: 6px; animation: slideIn 0.3s ease; }
+  .feedback.ok { border-left-color: var(--ok); }
+  .feedback.bad { border-left-color: var(--bad); }
+  .feedback strong { display: block; font-family: "Lilita One", system-ui, sans-serif; font-weight: 400; font-size: 1.15rem; }
+
+  .btn {
+    position: relative; overflow: hidden;
+    display: inline-block;
+    padding: 12px 26px;
+    font-size: 1.25rem;
+    color: var(--card-edge);
+    background: var(--yellow);
+    border: 3px solid var(--card-edge);
+    border-radius: 10px;
+    box-shadow: 0 4px 0 var(--card-edge);
+    cursor: pointer;
+    transition: filter 0.15s;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.1); }
+  .btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--card-edge); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--lc); outline-offset: 3px; }
+
+  .ripple {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    background: rgba(255, 255, 255, 0.55);
+    transform: scale(0);
+    animation: ripple 0.55s ease-out forwards;
+  }
+  @keyframes ripple { to { transform: scale(1); opacity: 0; } }
+
+  .hint { display: none; margin: 14px 0 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+  .has-cursor .hint { display: block; }
+
+  /* Resultado */
+  .result { text-align: center; }
+  .result h2 { font-size: clamp(1.7rem, 6vw, 2.3rem); color: var(--yellow); }
+  .big { font-size: clamp(3.4rem, 15vw, 5rem); line-height: 1; color: var(--lc); margin: 4px 0 6px; animation: pop 0.6s ease; }
+  .result p { margin: 0 auto 22px; max-width: 34ch; color: var(--muted); }
+  .hidden { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="spot" id="spot" aria-hidden="true"></div>
+<div class="shade" aria-hidden="true"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="flash" id="flash" aria-hidden="true"></div>
+<div class="cursor" id="cursor" aria-hidden="true"></div>
+
+<main class="wrap">
+  <div class="top">
+    <h1 id="title">Geometry Dash: ¿cuánto sabes?</h1>
+    <button class="mini" id="sound" type="button" aria-pressed="true">Sonido: sí</button>
+  </div>
+
+  <ol class="levels" id="levels" aria-label="Niveles"></ol>
+
+  <div class="track" id="track" role="progressbar" aria-label="Progreso del nivel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <span class="spike" style="left: 28%"></span>
+    <span class="spike" style="left: 55%"></span>
+    <span class="spike" style="left: 78%"></span>
+    <div class="cube" id="cube"></div>
+    <div class="ground"><div class="ground-fill"></div></div>
+  </div>
+  <div class="track-info">
+    <span id="counter"></span>
+    <span class="streak" id="streak"></span>
+    <span id="score"></span>
+  </div>
+
+  <section class="card" id="quiz">
+    <h2 id="question"></h2>
+    <div class="options" id="options" role="group" aria-labelledby="question"></div>
+    <div class="feedback hidden" id="feedback" aria-live="polite"></div>
+    <button class="btn" id="action" type="button" disabled>Comprobar</button>
+  </section>
+
+  <section class="card result hidden" id="result">
+    <h2 id="result-title"></h2>
+    <div class="big" id="result-big"></div>
+    <p id="result-text"></p>
+    <button class="btn" id="result-btn" type="button"></button>
+  </section>
+
+  <p class="hint">Atajos: A–D o 1–4 para elegir, Enter para continuar</p>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const PASS = 3; // aciertos mínimos para pasar de nivel
+
+  /* ---------- Datos: niveles, temas y preguntas ---------- */
+  const levels = [
+    {
+      name: "Fácil", color: "#3be6ff",
+      bgTop: "#2a63e8", bgBottom: "#123aa8", card: "#0e2a86", option: "#1a41b8", optionHover: "#2354dc", ground: "#06134a",
+      questions: [
+        { text: "¿Quién creó Geometry Dash?",
+          options: ["Notch", "RobTop", "Toby Fox", "Eric Barone"], answer: 1,
+          explanation: "RobTop (Robert Topala) desarrolló el juego y lo sigue actualizando." },
+        { text: "¿Qué forma tiene el icono del jugador por defecto?",
+          options: ["Triángulo", "Estrella", "Cubo", "Círculo"], answer: 2,
+          explanation: "Empiezas con un cubo, y puedes personalizarlo con otros iconos." },
+        { text: "¿Cómo se llama el primer nivel oficial?",
+          options: ["Back on Track", "Polargeist", "Dry Out", "Stereo Madness"], answer: 3,
+          explanation: "Stereo Madness es el nivel 1 del juego." },
+        { text: "¿Qué modo te deja practicar un nivel con checkpoints?",
+          options: ["Modo Práctica", "Modo Demon", "Modo Onda", "Modo Editor"], answer: 0,
+          explanation: "En el modo Práctica colocas checkpoints, pero no cuenta como completar el nivel." },
+        { text: "¿Qué pasa si el cubo toca un pincho?",
+          options: ["Ganas una moneda", "Mueres y reapareces", "Saltas más alto", "Cambias de modo"], answer: 1,
+          explanation: "Los pinchos destruyen el cubo y tienes que volver a empezar." }
+      ]
+    },
+    {
+      name: "Normal", color: "#7dff8a",
+      bgTop: "#1fb37a", bgBottom: "#0b6b6e", card: "#0a4a52", option: "#11666b", optionHover: "#1a838a", ground: "#04303a",
+      questions: [
+        { text: "¿En qué año se lanzó Geometry Dash por primera vez?",
+          options: ["2011", "2013", "2015", "2017"], answer: 1,
+          explanation: "Salió en agosto de 2013, primero en dispositivos móviles." },
+        { text: "¿Cómo se llama el segundo nivel oficial?",
+          options: ["Stereo Madness", "Polargeist", "Back on Track", "Dry Out"], answer: 2,
+          explanation: "Back on Track es el nivel 2, con música de DJVI." },
+        { text: "¿Qué modo de juego invierte la gravedad al tocar, pasando del suelo al techo?",
+          options: ["Nave", "Onda", "Robot", "Bola"], answer: 3,
+          explanation: "La bola rueda por el suelo o el techo y cambia de lado cada vez que tocas." },
+        { text: "¿Cuál de estos NO es un modo de juego?",
+          options: ["Nave (Ship)", "Onda (Wave)", "Tanque (Tank)", "Araña (Spider)"], answer: 2,
+          explanation: "El tanque no existe. Sí hay cubo, nave, bola, UFO, onda, robot, araña y swing copter." },
+        { text: "¿Quién compuso la música de Stereo Madness?",
+          options: ["Waterflame", "ForeverBound", "DJVI", "Dex Arson"], answer: 1,
+          explanation: "ForeverBound compuso la canción del primer nivel." }
+      ]
+    },
+    {
+      name: "Difícil", color: "#fff1a8",
+      bgTop: "#f0902e", bgBottom: "#a4431a", card: "#6a2c12", option: "#8d3d1a", optionHover: "#b34e21", ground: "#3d1808",
+      questions: [
+        { text: "¿Qué actualización añadió el modo Plataformas (Platformer)?",
+          options: ["2.0", "2.1", "2.11", "2.2"], answer: 3,
+          explanation: "La 2.2 llegó a finales de 2023 con el modo Plataformas, entre otras novedades." },
+        { text: "¿Cuántas monedas secretas tiene cada nivel oficial?",
+          options: ["1", "2", "3", "5"], answer: 2,
+          explanation: "Cada nivel oficial esconde 3 monedas secretas." },
+        { text: "¿Cuál de estos niveles oficiales tiene dificultad Demon?",
+          options: ["Stereo Madness", "Clubstep", "Polargeist", "Dry Out"], answer: 1,
+          explanation: "Clubstep es el nivel oficial Demon más conocido y uno de los más difíciles del juego base." },
+        { text: "¿Quién compuso la música de Jumper?",
+          options: ["DJVI", "Waterflame", "F-777", "Step"], answer: 1,
+          explanation: "Waterflame compuso Jumper, además de otras canciones de niveles oficiales." },
+        { text: "¿Quién compuso la música de Theory of Everything?",
+          options: ["DJ-Nate", "Dex Arson", "MDK", "ForeverBound"], answer: 0,
+          explanation: "DJ-Nate es el autor de Theory of Everything y de Clubstep." }
+      ]
+    },
+    {
+      name: "Demon", color: "#ff9aa8",
+      bgTop: "#d6303f", bgBottom: "#5c0b22", card: "#45101f", option: "#6b1b2e", optionHover: "#8c2540", ground: "#2a0510",
+      questions: [
+        { text: "¿Qué nivel oficial es el número 10?",
+          options: ["Cycles", "Clutterfunk", "xStep", "Time Machine"], answer: 2,
+          explanation: "xStep es el nivel 10, con música de Dex Arson." },
+        { text: "¿Quién compuso la música de Deadlocked?",
+          options: ["MDK", "F-777", "Dex Arson", "Waterflame"], answer: 1,
+          explanation: "F-777 es el autor de Deadlocked." },
+        { text: "¿Cuál es la categoría más alta dentro de los niveles Demon?",
+          options: ["Insane Demon", "Hard Demon", "Medium Demon", "Extreme Demon"], answer: 3,
+          explanation: "Las categorías van de Easy Demon hasta Extreme Demon." },
+        { text: "¿Quién creó el nivel Extreme Demon Bloodbath?",
+          options: ["Viprin", "Riot", "Zoink", "Knobbelboy"], answer: 1,
+          explanation: "Riot creó Bloodbath, uno de los Extreme Demon más famosos." },
+        { text: "¿Quién compuso la música de Electrodynamix?",
+          options: ["Waterflame", "DJVI", "Dex Arson", "DJ-Nate"], answer: 2,
+          explanation: "Dex Arson compuso Electrodynamix." }
+      ]
+    }
+  ];
+
+  /* ---------- Utilidades ---------- */
+  const $ = (id) => document.getElementById(id);
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const hexToRgb = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(",");
+  };
+  const restart = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (fine) document.documentElement.classList.add("has-cursor");
+
+  const track = $("track"), cube = $("cube");
+  const questionEl = $("question"), optionsEl = $("options");
+  const feedbackEl = $("feedback"), actionBtn = $("action");
+  const quizEl = $("quiz"), resultEl = $("result"), resultBtn = $("result-btn");
+  const levelsEl = $("levels"), streakEl = $("streak"), scoreEl = $("score");
+  const soundBtn = $("sound"), flashEl = $("flash"), cursorEl = $("cursor"), spotEl = $("spot");
+
+  /* ---------- Estado del quiz ---------- */
+  let levelIdx = 0, qIdx = 0, selected = null, checked = false;
+  let levelScore = 0, streak = 0;
+  let levelScores = levels.map(() => null);
+  let resultMode = "next";
+  let lcRGB = hexToRgb(levels[0].color);
+
+  /* ---------- Sonido (Web Audio, sin archivos) ---------- */
+  let audio = null, soundOn = true;
+  function ac() {
+    if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; } }
+    if (audio && audio.state === "suspended") audio.resume();
+    return audio;
+  }
+  function tone(freq, dur, type, vol, slide, delay) {
+    if (!soundOn) return;
+    const a = ac(); if (!a) return;
+    const t = a.currentTime + (delay || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || "square";
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol || 0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  const sfx = {
+    click() { tone(420, 0.06, "square", 0.04); },
+    pick() { tone(560, 0.08, "square", 0.05); },
+    ok() { tone(523, 0.12, "square", 0.06); tone(784, 0.2, "square", 0.06, 0, 0.1); },
+    bad() { tone(220, 0.4, "sawtooth", 0.07, -160); },
+    level() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.2, "square", 0.06, 0, i * 0.11)); }
+  };
+  soundBtn.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundBtn.textContent = "Sonido: " + (soundOn ? "sí" : "no");
+    soundBtn.setAttribute("aria-pressed", String(soundOn));
+    if (soundOn) sfx.click();
+  });
+
+  /* ---------- Canvas: fondo y partículas ---------- */
+  const bg = $("bg"), fx = $("fx");
+  const bgc = bg.getContext("2d"), fxc = fx.getContext("2d");
+  let W = 0, H = 0, DPR = 1;
+  const GH = 44; // alto del suelo
+  let shapes = [], spikes = [], scroll = 0;
+  const runner = { x: 90, h: 0, vh: 0, rot: 0 };
+  const parts = [];
+  const mouse = { x: innerWidth / 2, y: innerHeight / 2, seen: false };
+
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    [bg, fx].forEach((c) => { c.width = W * DPR; c.height = H * DPR; });
+    bgc.setTransform(DPR, 0, 0, DPR, 0, 0);
+    fxc.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const count = Math.min(46, Math.floor((W * H) / 26000));
+    shapes = Array.from({ length: count }, () => {
+      const depth = rand(0.2, 1);
+      return { x: rand(0, W), y: rand(0, H), depth, size: 12 + depth * 40, vy: 8 + depth * 30,
+               rot: rand(0, 6.28), vr: rand(-0.6, 0.6), tri: Math.random() < 0.35, tint: Math.random() < 0.4 };
+    });
+    spikes = [];
+    let x = 520;
+    while (x < W + 400) { spikes.push(x); x += rand(300, 640); }
+  }
+  addEventListener("resize", resize);
+
+  function drawBg(dt) {
+    bgc.clearRect(0, 0, W, H);
+    const mx = mouse.x - W / 2, my = mouse.y - H / 2;
+    for (const s of shapes) {
+      if (!reduce) {
+        s.y -= s.vy * dt; s.rot += s.vr * dt;
+        if (s.y < -s.size) { s.y = H + s.size; s.x = rand(0, W); }
+      }
+      bgc.save();
+      bgc.translate(s.x - mx * s.depth * 0.05, s.y - my * s.depth * 0.05);
+      bgc.rotate(s.rot);
+      bgc.globalAlpha = 0.08 + s.depth * 0.14;
+      bgc.fillStyle = s.tint ? "rgb(" + lcRGB + ")" : "#ffffff";
+      bgc.strokeStyle = "rgba(5,11,43,0.5)";
+      bgc.lineWidth = 2;
+      const h = s.size / 2;
+      if (s.tri) {
+        bgc.beginPath(); bgc.moveTo(0, -h); bgc.lineTo(h, h); bgc.lineTo(-h, h); bgc.closePath(); bgc.fill(); bgc.stroke();
+      } else {
+        bgc.fillRect(-h, -h, s.size, s.size); bgc.strokeRect(-h, -h, s.size, s.size);
+      }
+      bgc.restore();
+    }
+    bgc.globalAlpha = 1;
+    drawGround(dt);
+  }
+
+  function drawGround(dt) {
+    const t = levels[levelIdx];
+    const speed = reduce ? 0 : 240 * (1 + levelIdx * 0.3);
+    const base = H - GH;
+
+    if (speed) {
+      scroll = (scroll + speed * dt) % 44;
+      for (let i = 0; i < spikes.length; i++) spikes[i] -= speed * dt;
+      while (spikes.length && spikes[0] < -40) spikes.shift();
+      const last = spikes.length ? spikes[spikes.length - 1] : W;
+      if (last < W + 200) spikes.push(last + rand(300, 640));
+      // el cubo del fondo salta solo los pinchos
+      if (runner.h === 0) {
+        for (const sx of spikes) {
+          const d = sx - runner.x;
+          if (d > 0 && d < speed * 0.4) { runner.vh = 520; runner.h = 0.01; break; }
+        }
+      }
+      if (runner.h > 0) {
+        runner.h += runner.vh * dt; runner.vh -= 1700 * dt; runner.rot += 540 * dt;
+        if (runner.h <= 0) { runner.h = 0; runner.vh = 0; runner.rot = Math.round(runner.rot / 90) * 90; }
+      }
+    }
+
+    bgc.fillStyle = t.ground; bgc.fillRect(0, base, W, GH);
+    bgc.fillStyle = "rgb(" + lcRGB + ")"; bgc.fillRect(0, base, W, 4);
+    bgc.strokeStyle = "rgba(255,255,255,0.08)"; bgc.lineWidth = 2;
+    bgc.beginPath();
+    for (let x = -scroll; x < W; x += 44) { bgc.moveTo(x, base + 4); bgc.lineTo(x, H); }
+    bgc.stroke();
+
+    bgc.fillStyle = "#050b2b"; bgc.strokeStyle = "rgba(" + lcRGB + ",0.9)"; bgc.lineWidth = 2;
+    for (const sx of spikes) {
+      bgc.beginPath(); bgc.moveTo(sx - 13, base); bgc.lineTo(sx + 13, base); bgc.lineTo(sx, base - 26); bgc.closePath();
+      bgc.fill(); bgc.stroke();
+    }
+
+    bgc.save();
+    bgc.translate(runner.x, base - 15 - runner.h);
+    bgc.rotate((runner.rot * Math.PI) / 180);
+    bgc.fillStyle = "#ffd83d"; bgc.strokeStyle = "#050b2b"; bgc.lineWidth = 3;
+    bgc.fillRect(-15, -15, 30, 30); bgc.strokeRect(-15, -15, 30, 30);
+    bgc.fillStyle = "#050b2b"; bgc.fillRect(-8, -7, 5, 5); bgc.fillRect(3, -7, 5, 5);
+    bgc.restore();
+  }
+
+  function drawFx(dt) {
+    fxc.clearRect(0, 0, W, H);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.life -= dt;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.rot += p.vr * dt;
+      const a = p.life / p.max;
+      const s = p.size * (p.shrink ? 0.3 + 0.7 * a : 1);
+      fxc.save();
+      fxc.translate(p.x, p.y); fxc.rotate(p.rot);
+      fxc.globalAlpha = Math.min(1, a * 1.6);
+      fxc.fillStyle = p.color;
+      if (p.tri) {
+        fxc.beginPath(); fxc.moveTo(0, -s / 2); fxc.lineTo(s / 2, s / 2); fxc.lineTo(-s / 2, s / 2); fxc.closePath(); fxc.fill();
+      } else {
+        fxc.fillRect(-s / 2, -s / 2, s, s);
+        if (p.stroke) { fxc.strokeStyle = "#050b2b"; fxc.lineWidth = 2; fxc.strokeRect(-s / 2, -s / 2, s, s); }
+      }
+      fxc.restore();
+    }
+  }
+
+  const palette = () => ["#ffd83d", "#3be6ff", "#34d65f", "#ff4d5e", "#ffffff", levels[levelIdx].color];
+
+  function burst(x, y, n, colors, o) {
+    o = o || {};
+    const sp = o.speed || 280, g = o.g === undefined ? 800 : o.g;
+    for (let i = 0; i < n && parts.length < 700; i++) {
+      const a = Math.random() * Math.PI * 2, v = rand(0.3, 1) * sp, life = rand(0.5, 1.1);
+      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - sp * 0.3, g, rot: rand(0, 6.28), vr: rand(-9, 9),
+                   size: rand(6, 13), life, max: life, color: pick(colors), tri: Math.random() < 0.3, stroke: true, shrink: false });
+    }
+  }
+  function confetti(n) {
+    const total = reduce ? Math.min(n, 30) : n;
+    for (let i = 0; i < total && parts.length < 700; i++) {
+      const life = rand(3.5, 5.5);
+      parts.push({ x: rand(0, W), y: rand(-H * 0.4, -10), vx: rand(-70, 70), vy: rand(140, 320), g: 40, rot: rand(0, 6.28), vr: rand(-6, 6),
+                   size: rand(7, 12), life, max: life, color: pick(palette()), tri: Math.random() < 0.35, stroke: false, shrink: false });
+    }
+  }
+  function fireworks() {
+    const shots = reduce ? 2 : 7;
+    for (let i = 0; i < shots; i++) {
+      setTimeout(() => {
+        burst(rand(W * 0.15, W * 0.85), rand(H * 0.12, H * 0.5), 46, palette(), { speed: 340, g: 320 });
+        sfx.pick();
+      }, i * 320);
+    }
+  }
+  const centerOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+
+  /* ---------- Cursor cubo, estela, foco de luz ---------- */
+  const cur = { x: mouse.x, y: mouse.y, ang: 0, target: 0, scale: 1, scaleTarget: 1, lastTx: 0, lastTy: 0 };
+
+  function updateCursor(dt) {
+    const k = Math.min(1, dt * 18);
+    const vx = mouse.x - cur.x;
+    cur.x += vx * k; cur.y += (mouse.y - cur.y) * k;
+    cur.ang += (cur.target - cur.ang) * Math.min(1, dt * 14);
+    cur.scale += (cur.scaleTarget - cur.scale) * Math.min(1, dt * 16);
+    const tilt = clamp(vx * 0.9, -30, 30);
+    cursorEl.style.transform = "translate(" + cur.x + "px," + cur.y + "px) translate(-50%,-50%) rotate(" + (cur.ang + tilt) + "deg) scale(" + cur.scale + ")";
+    spotEl.style.setProperty("--sx", cur.x + "px");
+    spotEl.style.setProperty("--sy", cur.y + "px");
+
+    if (!reduce && mouse.seen && Math.hypot(cur.x - cur.lastTx, cur.y - cur.lastTy) > 10 && parts.length < 700) {
+      cur.lastTx = cur.x; cur.lastTy = cur.y;
+      parts.push({ x: cur.x, y: cur.y, vx: 0, vy: 0, g: 0, rot: (cur.ang + tilt) * Math.PI / 180, vr: 0, size: 12,
+                   life: 0.45, max: 0.45, color: "rgba(" + lcRGB + ",0.9)", tri: false, stroke: false, shrink: true });
+    }
+  }
+
+  if (fine) {
+    addEventListener("pointermove", (e) => {
+      if (e.pointerType === "touch") return;
+      mouse.x = e.clientX; mouse.y = e.clientY;
+      if (!mouse.seen) { mouse.seen = true; cur.x = e.clientX; cur.y = e.clientY; cur.lastTx = cur.x; cur.lastTy = cur.y; cursorEl.classList.add("show"); }
+      const b = e.target.closest && e.target.closest("button");
+      const hot = !!(b && !b.disabled);
+      cursorEl.classList.toggle("hot", hot);
+      cur.scaleTarget = hot ? 1.5 : 1;
+
+      // botones magnéticos
+      if (!reduce) {
+        [actionBtn, resultBtn, soundBtn].forEach((btn) => {
+          if (!btn.offsetParent) return;
+          const c = centerOf(btn);
+          const dx = e.clientX - c.x, dy = e.clientY - c.y;
+          if (Math.hypot(dx, dy) < 120) btn.style.translate = clamp(dx * 0.18, -10, 10) + "px " + clamp(dy * 0.18, -8, 8) + "px";
+          else btn.style.translate = "";
+        });
+      }
+    }, { passive: true });
+    document.documentElement.addEventListener("mouseleave", () => cursorEl.classList.remove("show"));
+    document.documentElement.addEventListener("mouseenter", () => { if (mouse.seen) cursorEl.classList.add("show"); });
+  }
+
+  // clic: chispas, giro del cursor y onda en los botones
+  addEventListener("pointerdown", (e) => {
+    ac();
+    if (fine) { cur.target += 90; cur.scaleTarget = 0.8; setTimeout(() => { cur.scaleTarget = cursorEl.classList.contains("hot") ? 1.5 : 1; }, 120); }
+    burst(e.clientX, e.clientY, reduce ? 3 : 9, [levels[levelIdx].color, "#ffffff", "#ffd83d"], { speed: 170, g: 500 });
+    const b = e.target.closest && e.target.closest(".btn, .option, .mini");
+    if (b && !b.disabled) {
+      const r = b.getBoundingClientRect();
+      const size = Math.max(r.width, r.height) * 2;
+      const rip = document.createElement("span");
+      rip.className = "ripple";
+      rip.style.width = rip.style.height = size + "px";
+      rip.style.left = e.clientX - r.left - size / 2 + "px";
+      rip.style.top = e.clientY - r.top - size / 2 + "px";
+      b.appendChild(rip);
+      rip.addEventListener("animationend", () => rip.remove());
+    }
+  });
+
+  // inclinación 3D y brillo en las tarjetas
+  [quizEl, resultEl].forEach((card) => {
+    if (!fine || reduce) return;
+    card.addEventListener("pointermove", (e) => {
+      const r = card.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+      card.style.transform = "perspective(900px) rotateX(" + (0.5 - py) * 7 + "deg) rotateY(" + (px - 0.5) * 7 + "deg)";
+      card.style.setProperty("--mx", px * 100 + "%");
+      card.style.setProperty("--my", py * 100 + "%");
+      card.style.setProperty("--glare", "1");
+    });
+    card.addEventListener("pointerleave", () => { card.style.transform = ""; card.style.setProperty("--glare", "0"); });
+  });
+
+  /* ---------- Título con letras que saltan ---------- */
+  (function buildTitle() {
+    const title = $("title");
+    const text = title.textContent;
+    title.setAttribute("aria-label", text);
+    title.textContent = "";
+    let n = 0;
+    text.split(" ").forEach((word, wi, arr) => {
+      const w = document.createElement("span");
+      w.className = "word"; w.setAttribute("aria-hidden", "true");
+      [...word].forEach((ch) => {
+        const s = document.createElement("span");
+        s.className = "ch"; s.textContent = ch;
+        s.style.setProperty("--d", n++ * 35 + "ms");
+        s.addEventListener("pointerenter", () => restart(s, "hop"));
+        w.appendChild(s);
+      });
+      title.appendChild(w);
+      if (wi < arr.length - 1) title.appendChild(document.createTextNode(" "));
+    });
+  })();
+
+  /* ---------- Lógica del quiz ---------- */
+  function applyTheme(i) {
+    const t = levels[i], s = document.documentElement.style;
+    s.setProperty("--bg-top", t.bgTop); s.setProperty("--bg-bottom", t.bgBottom);
+    s.setProperty("--card", t.card); s.setProperty("--option", t.option);
+    s.setProperty("--option-hover", t.optionHover); s.setProperty("--lc", t.color);
+    s.setProperty("--ground", t.ground);
+    lcRGB = hexToRgb(t.color);
+  }
+
+  function renderLevels() {
+    levelsEl.innerHTML = "";
+    levels.forEach((lv, i) => {
+      const li = document.createElement("li");
+      li.textContent = lv.name;
+      if (levelScores[i] !== null) li.className = "done";
+      else if (i === levelIdx) li.className = "current";
+      levelsEl.appendChild(li);
+    });
+    applyTheme(levelIdx);
+  }
+
+  function setProgress(done) {
+    const p = done / levels[levelIdx].questions.length;
+    track.style.setProperty("--p", p);
+    cube.style.setProperty("--p", p);
+    track.setAttribute("aria-valuenow", Math.round(p * 100));
+  }
+
+  const totalScore = () => levelScores.reduce((sum, s) => sum + (s || 0), 0);
+
+  function updateStreak() {
+    if (streak >= 2) { streakEl.textContent = "Racha x" + streak; restart(streakEl, "pop"); }
+    else streakEl.textContent = "";
+  }
+
+  function renderQuestion() {
+    const lv = levels[levelIdx];
+    const q = lv.questions[qIdx];
+    selected = null; checked = false;
+    questionEl.textContent = q.text;
+    $("counter").textContent = "Nivel " + (levelIdx + 1) + " · Pregunta " + (qIdx + 1) + " de " + lv.questions.length;
+    scoreEl.textContent = "Aciertos: " + levelScore;
+    feedbackEl.className = "feedback hidden";
+    feedbackEl.textContent = "";
+    actionBtn.textContent = "Comprobar";
+    actionBtn.disabled = true;
+
+    optionsEl.innerHTML = "";
+    q.options.forEach((opt, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "option";
+      btn.style.setProperty("--i", i);
+      btn.setAttribute("aria-pressed", "false");
+      const letter = document.createElement("span");
+      letter.className = "letter";
+      letter.textContent = String.fromCharCode(65 + i);
+      const label = document.createElement("span");
+      label.textContent = opt;
+      btn.append(letter, label);
+      btn.addEventListener("click", () => selectOption(i));
+      optionsEl.appendChild(btn);
+    });
+  }
+
+  function selectOption(i) {
+    if (checked) return;
+    selected = i;
+    [...optionsEl.children].forEach((btn, j) => btn.setAttribute("aria-pressed", j === i ? "true" : "false"));
+    actionBtn.disabled = false;
+    sfx.pick();
+  }
+
+  function flash(color) { flashEl.style.background = color; restart(flashEl, "go"); }
+  function shake(el) {
+    if (reduce) return;
+    el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+    el.addEventListener("animationend", () => el.classList.remove("shake"), { once: true });
+  }
+
+  function checkAnswer() {
+    const lv = levels[levelIdx];
+    const q = lv.questions[qIdx];
+    checked = true;
+    const isCorrect = selected === q.answer;
+    const optPos = centerOf(optionsEl.children[selected]);
+    const cubePos = centerOf(cube);
+
+    if (isCorrect) { levelScore++; streak++; } else { streak = 0; }
+
+    [...optionsEl.children].forEach((btn, j) => {
+      btn.disabled = true;
+      btn.setAttribute("aria-pressed", "false");
+      if (j === q.answer) btn.classList.add("correct");
+      else if (j === selected) btn.classList.add("wrong");
+    });
+
+    feedbackEl.className = "feedback " + (isCorrect ? "ok" : "bad");
+    feedbackEl.innerHTML = "";
+    const title = document.createElement("strong");
+    title.textContent = isCorrect ? "¡Correcto!" : "Incorrecto";
+    const text = document.createElement("span");
+    text.textContent = (isCorrect ? "" : "La respuesta era " + q.options[q.answer] + ". ") + q.explanation;
+    feedbackEl.append(title, text);
+
+    scoreEl.textContent = "Aciertos: " + levelScore;
+    if (isCorrect) restart(scoreEl, "pop");
+    updateStreak();
+    setProgress(qIdx + 1);
+    restart(cube, isCorrect ? "jump" : "crash");
+
+    if (isCorrect) {
+      burst(optPos.x, optPos.y, 34 + streak * 6, ["#34d65f", "#ffd83d", "#ffffff", levels[levelIdx].color], { speed: 320 });
+      setTimeout(() => burst(cubePos.x, cubePos.y, 14, ["#ffd83d", "#ffffff"], { speed: 200 }), 260);
+      flash("#34d65f"); sfx.ok();
+    } else {
+      burst(optPos.x, optPos.y, 30, ["#ff4d4d", "#050b2b", "#ffffff"], { speed: 300 });
+      setTimeout(() => burst(cubePos.x, cubePos.y, 18, ["#ffd83d", "#ff4d4d", "#050b2b"], { speed: 240 }), 200);
+      flash("#ff4d4d"); shake(quizEl); sfx.bad();
+    }
+    actionBtn.textContent = qIdx === lv.questions.length - 1 ? "Ver resultado" : "Siguiente pregunta";
+  }
+
+  function showResult() {
+    const lv = levels[levelIdx];
+    const n = lv.questions.length;
+    const passed = levelScore >= PASS;
+    const isLast = levelIdx === levels.length - 1;
+    quizEl.classList.add("hidden");
+    resultEl.classList.remove("hidden");
+    restart(resultEl, "enter");
+
+    if (passed) levelScores[levelIdx] = levelScore;
+    renderLevels();
+
+    if (passed && isLast) {
+      $("result-title").textContent = "¡Completaste todos los niveles!";
+      $("result-big").textContent = totalScore() + " / " + levels.length * n;
+      $("result-text").textContent = totalScore() === levels.length * n
+        ? "Puntaje perfecto. Eres un verdadero maestro de Geometry Dash."
+        : "Terminaste el Nivel Demon. Juega otra vez para conseguir el puntaje perfecto.";
+      resultBtn.textContent = "Jugar de nuevo";
+      resultMode = "restart";
+      confetti(180); fireworks(); sfx.level();
+    } else if (passed) {
+      $("result-title").textContent = "¡Nivel " + (levelIdx + 1) + " completado!";
+      $("result-big").textContent = levelScore + " / " + n;
+      $("result-text").textContent = "Desbloqueaste el Nivel " + (levelIdx + 2) + ": " + levels[levelIdx + 1].name + ". Las preguntas serán más difíciles.";
+      resultBtn.textContent = "Ir al Nivel " + (levelIdx + 2);
+      resultMode = "next";
+      confetti(110); sfx.level();
+    } else {
+      $("result-title").textContent = "Te estrellaste en el Nivel " + (levelIdx + 1);
+      $("result-big").textContent = levelScore + " / " + n;
+      $("result-text").textContent = "Necesitas al menos " + PASS + " aciertos para pasar de nivel. Inténtalo otra vez.";
+      resultBtn.textContent = "Reintentar nivel";
+      resultMode = "retry";
+      const c = centerOf(cube);
+      burst(c.x, c.y, 60, ["#ff4d4d", "#ffd83d", "#050b2b", "#ffffff"], { speed: 380 });
+      flash("#ff4d4d"); shake(resultEl); sfx.bad();
+    }
+    resultBtn.focus({ preventScroll: true });
+  }
+
+  function startLevel() {
+    qIdx = 0; levelScore = 0; streak = 0;
+    updateStreak();
+    cube.classList.remove("jump", "crash");
+    renderLevels();
+    setProgress(0);
+    resultEl.classList.add("hidden");
+    quizEl.classList.remove("hidden");
+    restart(quizEl, "enter");
+    renderQuestion();
+  }
+
+  actionBtn.addEventListener("click", () => {
+    if (!checked) checkAnswer();
+    else if (qIdx < levels[levelIdx].questions.length - 1) { qIdx++; renderQuestion(); sfx.click(); }
+    else showResult();
+  });
+
+  resultBtn.addEventListener("click", () => {
+    if (resultMode === "next") levelIdx++;
+    else if (resultMode === "restart") { levelIdx = 0; levelScores = levels.map(() => null); }
+    startLevel();
+  });
+
+  // atajos de teclado
+  addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const quizVisible = !quizEl.classList.contains("hidden");
+    if (quizVisible && !checked && e.key.length === 1) {
+      const k = e.key.toLowerCase();
+      const i = "abcd".indexOf(k) >= 0 ? "abcd".indexOf(k) : "1234".indexOf(k);
+      if (i >= 0 && i < optionsEl.children.length) { selectOption(i); e.preventDefault(); return; }
+    }
+    if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+      if (quizVisible) { if (!actionBtn.disabled) actionBtn.click(); }
+      else resultBtn.click();
+    }
+  });
+
+  /* ---------- Arranque ---------- */
+  resize();
+  startLevel();
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (fine && mouse.seen) updateCursor(dt);
+    drawBg(dt);
+    drawFx(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
